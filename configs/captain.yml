@@ -22,10 +22,10 @@ mcpServers:
     command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/memory/timeline.db"]
 
 subagent:
-  model: "custom/firstmate"
+  model: "custom/matey"
 
 customModels:
-  firstmate:
+  matey:
     name: "Gemma 4 Local"
     baseUrl: "http://127.0.0.1:8000/v1"
     family: "llama"

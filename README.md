@@ -1,4 +1,4 @@
-# The Ship's AI Architecture: Captain, Firstmate, and Matey
+# The Ship's AI Architecture: Captain, Matey, and Kimi
 
 Welcome to the central repository for the Ship's AI Architecture. This repository contains all the configurations, prompts, wrapper scripts, and documentation needed to deploy our highly optimized, multi-agent AI system on a fresh machine.
 
@@ -31,19 +31,14 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 *   **Config**: `~/.sle-kit/configs/captain.yml`
 *   **Prompt**: `~/.sle-kit/prompts/captain-prompt.md`
 *   **Wrapper**: `~/.local/bin/captain`
-*   **Role**: Remote model (Gemini 3.1 Pro). High-level strategy, complex debugging, and oversight. Spawns Firstmate as a subagent when local coordination is needed.
+*   **Role**: Remote model (Gemini 3.1 Pro). High-level strategy, complex debugging, and oversight. Spawns Matey or Kimi as subagents when local execution or analysis is needed.
 
-### Firstmate (Coordinator Subagent)
-*   **Config**: `~/.sle-kit/configs/firstmate.yml`
-*   **Prompt**: `~/.sle-kit/prompts/firstmate-prompt.md`
-*   **Wrapper**: `~/.local/bin/firstmate`
-*   **Role**: Local model (Gemma 27B). Autonomous coordinator. Reads the Blackboard, manages local state, and delegates heavy lifting to Matey.
 
 ### Matey (Worker Subagent)
 *   **Config**: `~/.sle-kit/configs/matey.yml`
 *   **Prompt**: `~/.sle-kit/prompts/matey-prompt.md`
 *   **Wrapper**: `~/.local/bin/matey`
-*   **Role**: Local model (Gemma 27B). One-shot worker. Executes complex coding, log analysis, and text processing tasks delegated by Firstmate.
+*   **Role**: Local model (Gemma 27B). One-shot worker. Executes complex coding, log analysis, and text processing tasks delegated by the Captain.
 
 ---
 
@@ -59,7 +54,7 @@ We replaced this with the **SQLite Blackboard Architecture**:
 2.  **The Timeline (`~/.sle-kit/memory/timeline.db`)**: A separate database tracking the exact shell commands and AI responses for conversational context.
 
 **How it works:**
-Instead of reading a 500-line markdown file, Firstmate runs a targeted SQL query: `SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;`. This uses almost zero tokens, provides instant context, and allows all three agents (Captain, Firstmate, Matey) to share the exact same "Ship Awareness" simultaneously without corrupting files.
+Instead of reading a 500-line markdown file, Matey runs a targeted SQL query: `SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;`. This uses almost zero tokens, provides instant context, and allows all three agents (Captain, Matey, Kimi) to share the exact same "Ship Awareness" simultaneously without corrupting files.
 
 ---
 
@@ -84,14 +79,11 @@ Instead of reading a 500-line markdown file, Firstmate runs a targeted SQL query
 <details>
 <summary><b>🕵️ Agents Layer (Kit / MCP)</b></summary>
 
-*   **Native Subagent Delegation**: Firstmate is strictly forbidden from writing code. It uses Kit's native `subagent` tool (configured in `firstmate.yml` under `customModels`) to spawn Matey for heavy lifting.
-*   **Single-Shot Bash Injection**: When calling Firstmate from the CLI (non-interactive), tool calls add ~10 seconds of overhead. We optimized the `firstmate` wrapper script to use `sqlite3` bash commands to fetch the Blackboard state and inject it directly into the prompt, bypassing the MCP tool overhead entirely and dropping response times to ~25 seconds.
 </details>
 
 <details>
 <summary><b>📝 Prompts Layer</b></summary>
 
-*   **Strict Role Enforcement**: Firstmate's prompt explicitly states: *"You are a Coordinator, NOT a worker. You must NEVER write scripts... If you generate code directly in your response, you fail your core directive."*
 *   **One-Shot Worker**: Matey's prompt strips away all conversational pleasantries and long-term memory instructions, forcing it to act as a pure, stateless function.
 </details>
 
@@ -157,11 +149,15 @@ systemctl --user enable --now llama-server.service
 
 ### Step 7: Verify the Installation
 ```bash
-# Test Firstmate (Should respond in ~30s)
-firstmate "who are you?"
 
 # Test Matey (Should respond in ~60s with code)
 matey "Write a python script that prints hello world."
 ```
 
 You are now ready to sail!
+
+### Kimi (Analytical Subagent)
+*   **Config**: `~/.sle-kit/configs/kimimate.yml`
+*   **Prompt**: `~/.sle-kit/prompts/kimi-prompt.md`
+*   **Wrapper**: `~/.local/bin/kimimate`
+*   **Role**: Local model (Kimi-K2.6). Analytical worker. Handles deep log analysis, data parsing, research, and complex text extraction.
