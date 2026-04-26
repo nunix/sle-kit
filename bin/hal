@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]; then
+    exec ~/.local/bin/hal-bin --config /home/nunix/.hal.yml --system-prompt /home/nunix/hal_prompts/system-prompt.md
+else
+    # Fetch context using sqlite3 directly
+    CONTEXT=$(sqlite3 /home/nunix/.hal_memory/timeline.db "SELECT '[' || actor || ' - ' || event_type || ']' || char(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || char(10) FROM (SELECT * FROM Timeline WHERE session_id = (SELECT session_id FROM ActiveSession WHERE id=1) ORDER BY timestamp DESC LIMIT 10) ORDER BY timestamp ASC;")
+    
+    USER_PROMPT="$*"
+    
+    # Log the prompt
+    CLEAN_PROMPT="${USER_PROMPT//\'/\'\'}"
+    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
+
+    INJECTED_PROMPT="<timeline_context>
+$CONTEXT
+</timeline_context>
+
+Based on the timeline context above, please respond to the following prompt. Do not generate transcript tags like [Captain - AI_Response]. Just provide your answer:
+$USER_PROMPT"
+
+    # Run, stream to TTY, and capture
+    OUTPUT=$(~/.local/bin/hal-bin --config /home/nunix/.hal.yml --system-prompt /home/nunix/hal_prompts/system-prompt.md --no-session "$INJECTED_PROMPT" | tee /dev/tty)
+    
+    # Strip ANSI codes and progress bar characters
+    CLEAN_OUTPUT=$(echo "$OUTPUT" | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' | tr -d '▪')
+    CLEAN_OUTPUT_SQL="${CLEAN_OUTPUT//\'/\'\'}"
+    
+    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Captain', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
+fi

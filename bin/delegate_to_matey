@@ -1,0 +1,24 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    echo "Error: You must provide a task description."
+    echo "Usage: delegate_to_matey \"Write a python script that...\""
+    exit 1
+fi
+
+TASK="$1"
+SYS_PROMPT=$(cat /home/nunix/hal_prompts/matey-prompt.md)
+
+# Construct the JSON payload safely using jq
+JSON_PAYLOAD=$(jq -n \
+    --arg model "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf" \
+    --arg sys "$SYS_PROMPT" \
+    --arg task "$TASK" \
+    '{model: $model, messages: [{role: "system", content: $sys}, {role: "user", content: $task}]}')
+
+# Call the local API
+echo "Delegating task to Matey... Please wait." >&2
+RESPONSE=$(curl -s http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d "$JSON_PAYLOAD")
+
+# Extract and print the content
+echo "$RESPONSE" | jq -r .choices[0].message.content

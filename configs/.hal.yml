@@ -1,0 +1,33 @@
+model: "google/gemini-3.1-pro-preview"
+max-steps: 30
+debug: false
+quiet: true
+
+# Make outputs safer for system administration
+temperature: 0.2
+maxTokens: 8192
+
+mcpServers:
+  blackboard:
+    type: local
+    command: ["mcp-server-sqlite-npx", "/home/nunix/ship_state.db"]
+  systemd:
+    type: local
+    command: ["mcp-server-systemd"]
+  prompt:
+    type: local
+    command: ["mcp-server-user-prompt"]
+  sqlite:
+    type: local
+    command: ["mcp-server-sqlite-npx", "/home/nunix/.hal_memory/timeline.db"]
+
+subagent:
+  model: "custom/matey"
+
+customModels:
+  matey:
+    name: "Gemma 4 Local"
+    baseUrl: "http://127.0.0.1:8000/v1"
+    family: "llama"
+    contextLimit: 16384
+    outputLimit: 8192

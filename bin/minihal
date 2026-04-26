@@ -1,0 +1,51 @@
+#!/bin/bash
+export TMPDIR=/home/nunix/minihal_temp
+mkdir -p $TMPDIR
+
+START_TIME=$(date +%s)
+
+# Check if llama-server is running
+if ! curl -s http://127.0.0.1:8000/v1/models > /dev/null; then
+    echo "Error: llama-server is not running. Please check 'systemctl --user status llama-server'."
+    exit 1
+fi
+
+if [ $# -eq 0 ]; then
+    OPENAI_API_KEY="EMPTY" ~/.local/bin/hal-bin --config /home/nunix/.minihal.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt /home/nunix/hal_prompts/minihal-system-prompt.md
+else
+    # Fetch context using sqlite3 directly
+    CONTEXT=$(sqlite3 /home/nunix/.hal_memory/timeline.db "SELECT '[' || actor || ' - ' || event_type || ']' || char(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || char(10) FROM (SELECT * FROM Timeline WHERE session_id = (SELECT session_id FROM ActiveSession WHERE id=1) ORDER BY timestamp DESC LIMIT 10) ORDER BY timestamp ASC;")
+
+    SYS_PROMPT=$(cat /home/nunix/hal_prompts/minihal-system-prompt.md)
+    USER_PROMPT="$*"
+    
+    # Log the prompt
+    CLEAN_PROMPT="${USER_PROMPT//\'/\'\'}"
+    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
+
+    INJECTED_PROMPT="$SYS_PROMPT
+
+<timeline_context>
+$CONTEXT
+</timeline_context>
+
+Based on the timeline context above, please respond to the following prompt. Do not generate transcript tags like [Matey - AI_Response]. Just provide your answer:
+$USER_PROMPT"
+
+    # Run and capture output as JSON, then extract the response
+    RAW_OUTPUT=$(OPENAI_API_KEY="EMPTY" ~/.local/bin/hal-bin --config /home/nunix/.minihal.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt /home/nunix/hal_prompts/minihal-system-prompt.md --no-session --quiet --json "$INJECTED_PROMPT")
+    OUTPUT=$(echo "$RAW_OUTPUT" | jq -r .response)
+    
+    # Strip ANSI codes just in case
+    CLEAN_OUTPUT=$(echo "$OUTPUT" | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g')
+    CLEAN_OUTPUT_SQL="${CLEAN_OUTPUT//\'/\'\'}"
+    
+    # Log the response
+    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Matey', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
+    
+    echo "$OUTPUT"
+fi
+
+END_TIME=$(date +%s)
+EXEC_TIME=$((END_TIME - START_TIME))
+echo "Execution time: ${EXEC_TIME}s" >> /tmp/minihal_time.txt

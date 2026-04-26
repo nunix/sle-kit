@@ -1,0 +1,22 @@
+model: "openai/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+provider-url: "http://127.0.0.1:8000/v1"
+provider-api-key: "EMPTY"
+max-steps: 30
+debug: false
+quiet: true
+temperature: 0.1
+maxTokens: 16384
+
+mcpServers:
+  blackboard:
+    type: local
+    command: ["mcp-server-sqlite-npx", "/home/nunix/ship_state.db"]
+  systemd:
+    type: local
+    command: ["mcp-server-systemd", "--allow-read"]
+  prompt:
+    type: local
+    command: ["mcp-server-user-prompt"]
+  sqlite:
+    type: local
+    command: ["mcp-server-sqlite-npx", "/home/nunix/.hal_memory/timeline.db"]

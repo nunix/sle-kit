@@ -1,0 +1,14 @@
+[Unit]
+Description=Llama.cpp Server for Local AI Models
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/nunix/llama.cpp/build-vulkan/bin/llama-server -m /home/nunix/models/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf -c 16384 -ngl 99 -b 512 -ub 512 -t 8 -fa on --port 8000 -ctk q8_0 -ctv q8_0  --cache-reuse 256 --reasoning-budget 128 --reasoning-budget-message "Thought process truncated. Proceeding to answer." --cache-ram 512
+Restart=always
+RestartSec=3
+StandardOutput=append:/tmp/llama_server.log
+StandardError=append:/tmp/llama_server.log
+
+[Install]
+WantedBy=default.target
