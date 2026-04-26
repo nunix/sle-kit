@@ -7,7 +7,7 @@ if [ -z "$1" ]; then
 fi
 
 TASK="$1"
-SYS_PROMPT=$(cat /home/nunix/hal_prompts/matey-prompt.md)
+SYS_PROMPT=$(cat ~/.sle-kit/prompts/matey-prompt.md)
 
 # Construct the JSON payload safely using jq
 JSON_PAYLOAD=$(jq -n \

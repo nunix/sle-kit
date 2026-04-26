@@ -1,5 +1,5 @@
 #!/bin/bash
-export TMPDIR=/home/nunix/minihal_temp
+export TMPDIR=~/.sle-kit/temp
 mkdir -p $TMPDIR
 
 START_TIME=$(date +%s)
@@ -11,20 +11,20 @@ if ! curl -s http://127.0.0.1:8000/v1/models > /dev/null; then
 fi
 
 if [ $# -eq 0 ]; then
-    # Interactive mode: use hal-bin (MCP tools available)
-    OPENAI_API_KEY="EMPTY" ~/.local/bin/hal-bin --config /home/nunix/.firsthal.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt /home/nunix/hal_prompts/firstmate-prompt.md
+    # Interactive mode: use kit (MCP tools available)
+    OPENAI_API_KEY="EMPTY" kit --config ~/.sle-kit/configs/firstmate.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt ~/.sle-kit/prompts/firstmate-prompt.md
 else
     # Single-shot mode: use Bash Injection to avoid multi-step tool calls
-    CONTEXT=$(sqlite3 /home/nunix/.hal_memory/timeline.db "SELECT '[' || actor || ' - ' || event_type || ']' || char(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || char(10) FROM (SELECT * FROM Timeline WHERE session_id = (SELECT session_id FROM ActiveSession WHERE id=1) ORDER BY timestamp DESC LIMIT 10) ORDER BY timestamp ASC;")
+    CONTEXT=$(sqlite3 ~/.sle-kit/memory/timeline.db "SELECT '[' || actor || ' - ' || event_type || ']' || char(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || char(10) FROM (SELECT * FROM Timeline WHERE session_id = (SELECT session_id FROM ActiveSession WHERE id=1) ORDER BY timestamp DESC LIMIT 10) ORDER BY timestamp ASC;")
 
-    ALERTS=$(sqlite3 /home/nunix/ship_state.db "SELECT * FROM alerts;")
-    ACTIONS=$(sqlite3 /home/nunix/ship_state.db "SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;")
+    ALERTS=$(sqlite3 ~/.sle-kit/ship_state.db "SELECT * FROM alerts;")
+    ACTIONS=$(sqlite3 ~/.sle-kit/ship_state.db "SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;")
 
-    SYS_PROMPT=$(cat /home/nunix/hal_prompts/firstmate-prompt.md)
+    SYS_PROMPT=$(cat ~/.sle-kit/prompts/firstmate-prompt.md)
     USER_PROMPT="$*"
     
     CLEAN_PROMPT="${USER_PROMPT//\'/\'\'}"
-    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
+    sqlite3 ~/.sle-kit/memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
 
     INJECTED_PROMPT="$SYS_PROMPT
 
@@ -60,8 +60,8 @@ Prompt: $USER_PROMPT"
     CLEAN_OUTPUT=$(echo "$OUTPUT" | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g')
     CLEAN_OUTPUT_SQL="${CLEAN_OUTPUT//\'/\'\'}"
     
-    sqlite3 /home/nunix/.hal_memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Firstmate', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
-    sqlite3 /home/nunix/ship_state.db "INSERT INTO action_log (actor, action, details) VALUES ('Firstmate', 'Answered single-shot prompt', 'Prompt: $CLEAN_PROMPT');"
+    sqlite3 ~/.sle-kit/memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Firstmate', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
+    sqlite3 ~/.sle-kit/ship_state.db "INSERT INTO action_log (actor, action, details) VALUES ('Firstmate', 'Answered single-shot prompt', 'Prompt: $CLEAN_PROMPT');"
 
     echo "$OUTPUT"
 fi

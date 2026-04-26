@@ -10,7 +10,7 @@ maxTokens: 16384
 mcpServers:
   blackboard:
     type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/ship_state.db"]
+    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/ship_state.db"]
   systemd:
     type: local
     command: ["mcp-server-systemd", "--allow-read"]
@@ -19,4 +19,15 @@ mcpServers:
     command: ["mcp-server-user-prompt"]
   sqlite:
     type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/.hal_memory/timeline.db"]
+    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/memory/timeline.db"]
+
+subagent:
+  model: "custom/matey"
+
+customModels:
+  matey:
+    name: "Gemma 4 Local"
+    baseUrl: "http://127.0.0.1:8000/v1"
+    family: "llama"
+    contextLimit: 16384
+    outputLimit: 8192
