@@ -1,0 +1,5 @@
+#!/bin/bash
+echo "Stopping all local AI models..."
+systemctl --user stop llama-server.service
+systemctl --user stop kimi-server.service
+echo "All local AI models stopped successfully."

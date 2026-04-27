@@ -6,7 +6,7 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 
 ### Core Binaries
 *   **`kit`**: The core agent framework powering all interactions (previously known as `hal-bin`).
-*   **`llama-server`** (llama.cpp): The local inference engine running the Gemma 27B model.
+*   **`llama-server`** (llama.cpp): The local inference engine running the local models.
 *   **`sqlite3`**: Used for the Blackboard and Timeline memory systems.
 *   **`jq`**: Used for JSON payload manipulation in bash scripts.
 *   **`node` / `npm`**: Required to run the SQLite MCP server.
@@ -25,7 +25,7 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 *   `~/.sle-kit/configs/`: Contains the Kit YAML configuration files.
 *   `~/.sle-kit/prompts/`: Contains all system prompts and persona definitions.
 *   `~/.sle-kit/memory/`: Contains the `timeline.db` (chat history).
-*   `~/.config/systemd/user/`: Contains the `llama-server.service` definition.
+*   `~/.config/systemd/user/`: Contains the `llama-server.service` and `kimi-server.service` definitions.
 
 ### The Captain
 *   **Config**: `~/.sle-kit/configs/captain.yml`
@@ -37,8 +37,22 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 ### Matey (Worker Subagent)
 *   **Config**: `~/.sle-kit/configs/matey.yml`
 *   **Prompt**: `~/.sle-kit/prompts/matey-prompt.md`
-*   **Wrapper**: `~/.local/bin/matey`
+*   **Wrapper**: `~/.local/bin/minihal` (symlinked as `matey`)
 *   **Role**: Local model (Gemma 27B). One-shot worker. Executes complex coding, log analysis, and text processing tasks delegated by the Captain.
+
+### Firstmate (Interactive Local Agent)
+*   **Wrapper**: `~/.local/bin/firsthal`
+*   **Role**: Local model (Gemma 27B). Interactive worker with MCP tool access.
+
+### Kimi (Analytical Subagent)
+*   **Config**: `~/.sle-kit/configs/kimimate.yml`
+*   **Prompt**: `~/.sle-kit/prompts/kimi-prompt.md`
+*   **Wrapper**: `~/.local/bin/kimimate`
+*   **Role**: Local model (Kimi-K2.6). Analytical worker. Handles deep log analysis, data parsing, research, and complex text extraction.
+
+### Service Management Scripts
+*   **`stop-llama-models`**: Gracefully stops all local llama.cpp servers via systemd.
+*   **`stop-local-models`**: Gracefully stops all local AI models via systemd.
 
 ---
 
@@ -117,9 +131,9 @@ mkdir -p ~/.config/systemd/user
 ### Step 3: Copy Files
 1. Clone this repository.
 2. Copy all `.yml` files from `configs/` to `~/.sle-kit/configs/`.
-3. Copy all wrapper scripts (`captain`, `firstmate`, `matey`, `delegate_to_matey`, `mcp-server-sqlite-npx`) from `bin/` to `~/.local/bin/` and make them executable (`chmod +x ~/.local/bin/*`).
+3. Copy all wrapper scripts (`captain`, `firsthal`, `minihal`, `kimimate`, `stop-llama-models`, `stop-local-models`, `delegate_to_matey`, `mcp-server-sqlite-npx`) from `bin/` to `~/.local/bin/` and make them executable (`chmod +x ~/.local/bin/*`). Create a symlink for matey: `ln -s ~/.local/bin/minihal ~/.local/bin/matey`.
 4. Copy all markdown prompts from `prompts/` to `~/.sle-kit/prompts/`.
-5. Copy `llama-server.service` from `systemd/` to `~/.config/systemd/user/`.
+5. Copy `llama-server.service` and `kimi-server.service` from `systemd/` to `~/.config/systemd/user/`.
 
 ### Step 4: Initialize the SQLite Memory
 ```bash
@@ -155,9 +169,3 @@ matey "Write a python script that prints hello world."
 ```
 
 You are now ready to sail!
-
-### Kimi (Analytical Subagent)
-*   **Config**: `~/.sle-kit/configs/kimimate.yml`
-*   **Prompt**: `~/.sle-kit/prompts/kimi-prompt.md`
-*   **Wrapper**: `~/.local/bin/kimimate`
-*   **Role**: Local model (Kimi-K2.6). Analytical worker. Handles deep log analysis, data parsing, research, and complex text extraction.

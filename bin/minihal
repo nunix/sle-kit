@@ -5,9 +5,13 @@ mkdir -p $TMPDIR
 START_TIME=$(date +%s)
 
 # Check if llama-server is running
-if ! curl -s http://127.0.0.1:8000/v1/models > /dev/null; then
-    echo "Error: llama-server is not running. Please check 'systemctl --user status llama-server'."
-    exit 1
+if ! curl -s -f http://127.0.0.1:8000/v1/models > /dev/null; then
+    echo "Starting llama-server.service..."
+    systemctl --user start llama-server.service
+    # Wait for it to be ready (HTTP 200)
+    while ! curl -s -f http://127.0.0.1:8000/v1/models > /dev/null; do
+        sleep 1
+    done
 fi
 
 if [ $# -eq 0 ]; then
