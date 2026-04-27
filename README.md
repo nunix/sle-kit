@@ -1,11 +1,11 @@
-# The Ship's AI Architecture: Captain, Matey, and Kimi
+# The Ship's AI Architecture: Captain and Matey
 
 Welcome to the central repository for the Ship's AI Architecture. This repository contains all the configurations, prompts, wrapper scripts, and documentation needed to deploy our highly optimized, multi-agent AI system on a fresh machine.
 
 ## 1. Binaries and MCP Servers in Use
 
 ### Core Binaries
-*   **`kit`**: The core agent framework powering all interactions (previously known as `hal-bin`).
+*   **`kit`**: The core agent framework powering all interactions.
 *   **`llama-server`** (llama.cpp): The local inference engine running the local models.
 *   **`sqlite3`**: Used for the Blackboard and Timeline memory systems.
 *   **`jq`**: Used for JSON payload manipulation in bash scripts.
@@ -25,30 +25,19 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 *   `~/.sle-kit/configs/`: Contains the Kit YAML configuration files.
 *   `~/.sle-kit/prompts/`: Contains all system prompts and persona definitions.
 *   `~/.sle-kit/memory/`: Contains the `timeline.db` (chat history).
-*   `~/.config/systemd/user/`: Contains the `llama-server.service` and `kimi-server.service` definitions.
+*   `~/.config/systemd/user/`: Contains the `llama-server.service` definition.
 
 ### The Captain
 *   **Config**: `~/.sle-kit/configs/captain.yml`
 *   **Prompt**: `~/.sle-kit/prompts/captain-prompt.md`
 *   **Wrapper**: `~/.local/bin/captain`
-*   **Role**: Remote model (Gemini 3.1 Pro). High-level strategy, complex debugging, and oversight. Spawns Matey or Kimi as subagents when local execution or analysis is needed.
-
+*   **Role**: Remote model (Gemini 3.1 Pro). High-level strategy, complex debugging, and oversight. Spawns Matey as a subagent when local execution or analysis is needed.
 
 ### Matey (Worker Subagent)
 *   **Config**: `~/.sle-kit/configs/matey.yml`
 *   **Prompt**: `~/.sle-kit/prompts/matey-prompt.md`
 *   **Wrapper**: `~/.local/bin/minihal` (symlinked as `matey`)
-*   **Role**: Local model (Gemma 27B). One-shot worker. Executes complex coding, log analysis, and text processing tasks delegated by the Captain.
-
-### Firstmate (Interactive Local Agent)
-*   **Wrapper**: `~/.local/bin/firsthal`
-*   **Role**: Local model (Gemma 27B). Interactive worker with MCP tool access.
-
-### Kimi (Analytical Subagent)
-*   **Config**: `~/.sle-kit/configs/kimimate.yml`
-*   **Prompt**: `~/.sle-kit/prompts/kimi-prompt.md`
-*   **Wrapper**: `~/.local/bin/kimimate`
-*   **Role**: Local model (Kimi-K2.6). Analytical worker. Handles deep log analysis, data parsing, research, and complex text extraction.
+*   **Role**: Local model (Gemma 4 26B). One-shot worker. Executes complex coding, log analysis, system querying, and text processing tasks delegated by the Captain.
 
 ### Service Management Scripts
 *   **`stop-llama-models`**: Gracefully stops all local llama.cpp servers via systemd.
@@ -68,7 +57,7 @@ We replaced this with the **SQLite Blackboard Architecture**:
 2.  **The Timeline (`~/.sle-kit/memory/timeline.db`)**: A separate database tracking the exact shell commands and AI responses for conversational context.
 
 **How it works:**
-Instead of reading a 500-line markdown file, Matey runs a targeted SQL query: `SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;`. This uses almost zero tokens, provides instant context, and allows all three agents (Captain, Matey, Kimi) to share the exact same "Ship Awareness" simultaneously without corrupting files.
+Instead of reading a 500-line markdown file, Matey runs a targeted SQL query: `SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;`. This uses almost zero tokens, provides instant context, and allows both agents (Captain and Matey) to share the exact same "Ship Awareness" simultaneously without corrupting files.
 
 ---
 
@@ -84,15 +73,10 @@ Instead of reading a 500-line markdown file, Matey runs a targeted SQL query: `S
 </details>
 
 <details>
-<summary><b>🤖 LLM / Reasoning Layer (Gemma 27B)</b></summary>
+<summary><b>🤖 LLM / Reasoning Layer (Gemma 4 26B)</b></summary>
 
 *   **The Reasoning Budget (`--reasoning-budget 128`)**: Gemma 4 is an "Instruct" model that uses an internal monologue (`<thought>`). Unbounded, it took 1m40s to answer simple questions. Disabled entirely, it lost its ability to write complex code. We set a "Goldilocks" budget of 128 tokens.
 *   **The Anti-Hang Message (`--reasoning-budget-message "Thought process truncated. Proceeding to answer."`)**: When the 128-token budget runs out, the model used to panic and hang for 5 minutes. Injecting this exact string forces the model to gracefully exit its monologue and output the final answer immediately.
-</details>
-
-<details>
-<summary><b>🕵️ Agents Layer (Kit / MCP)</b></summary>
-
 </details>
 
 <details>
@@ -131,9 +115,9 @@ mkdir -p ~/.config/systemd/user
 ### Step 3: Copy Files
 1. Clone this repository.
 2. Copy all `.yml` files from `configs/` to `~/.sle-kit/configs/`.
-3. Copy all wrapper scripts (`captain`, `firsthal`, `minihal`, `kimimate`, `stop-llama-models`, `stop-local-models`, `delegate_to_matey`, `mcp-server-sqlite-npx`) from `bin/` to `~/.local/bin/` and make them executable (`chmod +x ~/.local/bin/*`). Create a symlink for matey: `ln -s ~/.local/bin/minihal ~/.local/bin/matey`.
+3. Copy all wrapper scripts (`captain`, `minihal`, `stop-llama-models`, `stop-local-models`, `delegate_to_matey`, `mcp-server-sqlite-npx`) from `bin/` to `~/.local/bin/` and make them executable (`chmod +x ~/.local/bin/*`). Create a symlink for matey: `ln -s ~/.local/bin/minihal ~/.local/bin/matey`.
 4. Copy all markdown prompts from `prompts/` to `~/.sle-kit/prompts/`.
-5. Copy `llama-server.service` and `kimi-server.service` from `systemd/` to `~/.config/systemd/user/`.
+5. Copy `llama-server.service` from `systemd/` to `~/.config/systemd/user/`.
 
 ### Step 4: Initialize the SQLite Memory
 ```bash
@@ -144,7 +128,7 @@ sqlite3 ~/.sle-kit/ship_state.db < memory_schema/ship_state_schema.sql
 sqlite3 ~/.sle-kit/memory/timeline.db < memory_schema/timeline_schema.sql
 
 # Seed initial hardware constraints
-sqlite3 ~/.sle-kit/ship_state.db "INSERT INTO alerts (alert_text, severity) VALUES ('Hardware constraints: 8GB VRAM limit. Gemma 27B model split between GPU/CPU. 8-bit KV cache active to save RAM.', 'INFO');"
+sqlite3 ~/.sle-kit/ship_state.db "INSERT INTO alerts (alert_text, severity) VALUES ('Hardware constraints: 8GB VRAM limit. Gemma 26B model split between GPU/CPU. 8-bit KV cache active to save RAM.', 'INFO');"
 ```
 
 ### Step 5: Configure Bash Integration
@@ -163,7 +147,6 @@ systemctl --user enable --now llama-server.service
 
 ### Step 7: Verify the Installation
 ```bash
-
 # Test Matey (Should respond in ~60s with code)
 matey "Write a python script that prints hello world."
 ```
