@@ -8,15 +8,12 @@ temperature: 0.1
 maxTokens: 16384
 
 mcpServers:
-  blackboard:
+  postgres:
     type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/ship_state.db"]
+    command: ["/usr/bin/mcp-server-postgresql", "postgresql://nunix:nunix@localhost/ship_state"]
+  filesystem:
+    type: local
+    command: ["/usr/bin/mcp-server-filesystem", "/home/nunix", "/etc", "/var/log"]
   systemd:
     type: local
-    command: ["mcp-server-systemd", "--allow-read"]
-  prompt:
-    type: local
-    command: ["mcp-server-user-prompt"]
-  sqlite:
-    type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/memory/timeline.db"]
+    command: ["/usr/bin/mcp-server-systemd"]

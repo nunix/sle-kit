@@ -7,12 +7,13 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 ### Core Binaries
 *   **`kit`**: The core agent framework powering all interactions.
 *   **`llama-server`** (llama.cpp): The local inference engine running the local models.
-*   **`sqlite3`**: Used for the Blackboard and Timeline memory systems.
+*   **`psql`**: Used for the Blackboard and Timeline memory systems via PostgreSQL.
 *   **`jq`**: Used for JSON payload manipulation in bash scripts.
-*   **`node` / `npm`**: Required to run the SQLite MCP server.
+*   **`node` / `npm`**: Required to run the MCP servers.
 
 ### MCP Servers
-*   **`mcp-server-sqlite-npx`**: A custom Node.js wrapper for `@modelcontextprotocol/server-sqlite`, providing `read_query`, `write_query`, `create_table`, etc. Used for both the Blackboard and the Timeline.
+*   **`mcp-server-postgresql`**: Provides PostgreSQL database access for the Blackboard and Timeline.
+*   **`mcp-server-filesystem`**: Provides advanced file system operations.
 *   **`mcp-server-systemd`**: Provides systemd management capabilities (`change_unit_state`, `list_units`, `get_file`, `list_log`). Must be installed on the host system.
 *   **`mcp-server-user-prompt`**: Allows the AI to prompt the user for confirmation before executing critical actions.
 
@@ -24,7 +25,7 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 *   `~/.local/bin/`: Contains all executable wrapper scripts and MCP servers.
 *   `~/.sle-kit/configs/`: Contains the Kit YAML configuration files.
 *   `~/.sle-kit/prompts/`: Contains all system prompts and persona definitions.
-*   `~/.sle-kit/memory/`: Contains the `timeline.db` (chat history).
+*   `~/.sle-kit/memory/`: Contains the session data.
 *   `~/.config/systemd/user/`: Contains the `llama-server.service` definition.
 
 ### The Captain
@@ -45,16 +46,16 @@ Welcome to the central repository for the Ship's AI Architecture. This repositor
 
 ---
 
-## 3. The Memory Genesis (SQLite Blackboard)
+## 3. The Memory Genesis (PostgreSQL Blackboard)
 
 Initially, the system relied on reading and writing to Markdown files (`host_state.md`, `recent_history.md`). This caused massive context bloat and token waste because the AI had to read the entire file every time.
 
-We replaced this with the **SQLite Blackboard Architecture**:
-1.  **The Blackboard (`~/.sle-kit/ship_state.db`)**: A centralized, ACID-compliant SQLite database containing three tables:
+We replaced this with the **PostgreSQL Blackboard Architecture**:
+1.  **The Blackboard (`ship_state` database)**: A centralized, ACID-compliant PostgreSQL database containing three tables:
     *   `objectives`: Current mission goals.
     *   `alerts`: System warnings and hardware constraints.
     *   `action_log`: A running history of who did what.
-2.  **The Timeline (`~/.sle-kit/memory/timeline.db`)**: A separate database tracking the exact shell commands and AI responses for conversational context.
+2.  **The Timeline (`ship_state` database)**: The same database tracks the exact shell commands and AI responses for conversational context in the `Timeline` table.
 
 **How it works:**
 Instead of reading a 500-line markdown file, Matey runs a targeted SQL query: `SELECT * FROM action_log ORDER BY timestamp DESC LIMIT 5;`. This uses almost zero tokens, provides instant context, and allows both agents (Captain and Matey) to share the exact same "Ship Awareness" simultaneously without corrupting files.
@@ -94,11 +95,11 @@ Follow these steps to deploy this architecture on a freshly installed system con
 ### Step 1: Install Dependencies
 Ensure you have the following installed on your system:
 ```bash
-sudo zypper in sqlite3 jq nodejs npm curl
+sudo zypper in postgresql-server jq nodejs npm curl
 ```
 Install the required MCP servers (ensure they are in your `$PATH`):
 ```bash
-npm install -g @modelcontextprotocol/server-sqlite
+npm install -g @modelcontextprotocol/server-postgres
 # Install mcp-server-systemd and mcp-server-user-prompt according to their respective sources
 ```
 
@@ -113,27 +114,45 @@ mkdir -p ~/.config/systemd/user
 ```
 
 ### Step 3: Copy Files
-1. Clone this repository.
-2. Copy all `.yml` files from `configs/` to `~/.sle-kit/configs/`.
-3. Copy all wrapper scripts (`captain`, `minihal`, `stop-llama-models`, `stop-local-models`, `delegate_to_matey`, `mcp-server-sqlite-npx`) from `bin/` to `~/.local/bin/` and make them executable (`chmod +x ~/.local/bin/*`). Create a symlink for matey: `ln -s ~/.local/bin/minihal ~/.local/bin/matey`.
-4. Copy all markdown prompts from `prompts/` to `~/.sle-kit/prompts/`.
-5. Copy `llama-server.service` from `systemd/` to `~/.config/systemd/user/`.
+1. Clone this repository:
+   ```bash
+   cd ~/Documents
+   git clone <repository-url> sle-kit
+   cd sle-kit
+   ```
+2. Copy all `.yml` files from `configs/` to `~/.sle-kit/configs/`:
+   ```bash
+   cp configs/*.yml ~/.sle-kit/configs/
+   ```
+3. Copy all wrapper scripts from `bin/` to `~/.local/bin/` and make them executable:
+   ```bash
+   cp bin/* ~/.local/bin/
+   chmod +x ~/.local/bin/*
+   ln -s ~/.local/bin/minihal ~/.local/bin/matey
+   ```
+4. Copy all markdown prompts from `prompts/` to `~/.sle-kit/prompts/`:
+   ```bash
+   cp prompts/*.md ~/.sle-kit/prompts/
+   ```
+5. Copy `llama-server.service` from `systemd/` to `~/.config/systemd/user/`:
+   ```bash
+   cp systemd/llama-server.service ~/.config/systemd/user/
+   ```
 
-### Step 4: Initialize the SQLite Memory
+### Step 4: Initialize the PostgreSQL Memory
 ```bash
-# Initialize the Blackboard
-sqlite3 ~/.sle-kit/ship_state.db < memory_schema/ship_state_schema.sql
-
-# Initialize the Timeline
-sqlite3 ~/.sle-kit/memory/timeline.db < memory_schema/timeline_schema.sql
+# Initialize the Blackboard and Timeline
+cd memory_schema
+./init_db.sh
 
 # Seed initial hardware constraints
-sqlite3 ~/.sle-kit/ship_state.db "INSERT INTO alerts (alert_text, severity) VALUES ('Hardware constraints: 8GB VRAM limit. Gemma 26B model split between GPU/CPU. 8-bit KV cache active to save RAM.', 'INFO');"
+psql postgresql://nunix:nunix@localhost/ship_state -c "INSERT INTO alerts (alert_text, severity) VALUES ('Hardware constraints: 8GB VRAM limit. Gemma 26B model split between GPU/CPU. 8-bit KV cache active to save RAM.', 'INFO');"
 ```
 
 ### Step 5: Configure Bash Integration
 Append the contents of `ai_bashrc_snippet.sh` to your `~/.bashrc` file to enable the AI aliases and the timeline logging hook:
 ```bash
+cd ~/Documents/sle-kit
 cat ai_bashrc_snippet.sh >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -147,6 +166,9 @@ systemctl --user enable --now llama-server.service
 
 ### Step 7: Verify the Installation
 ```bash
+# Test Captain
+captain "what is your name and who am I?"
+
 # Test Matey (Should respond in ~60s with code)
 matey "Write a python script that prints hello world."
 ```

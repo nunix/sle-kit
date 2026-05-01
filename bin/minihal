@@ -1,5 +1,5 @@
 #!/bin/bash
-export TMPDIR=/home/nunix/sle-kit/temp
+export TMPDIR=/home/nunix/.sle-kit/temp
 mkdir -p $TMPDIR
 
 START_TIME=$(date +%s)
@@ -15,17 +15,17 @@ if ! curl -s -f http://127.0.0.1:8000/v1/models > /dev/null; then
 fi
 
 if [ $# -eq 0 ]; then
-    OPENAI_API_KEY="EMPTY" kit --config ~/.sle-kit/configs/matey.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt ~/.sle-kit/prompts/matey-prompt.md
+    OPENAI_API_KEY="EMPTY" kit --config ~/.sle-kit/configs/matey.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt "$(cat ~/.sle-kit/prompts/matey-prompt.md)"
 else
-    # Fetch context using sqlite3 directly
-    CONTEXT=$(sqlite3 ~/.sle-kit/memory/timeline.db "SELECT '[' || actor || ' - ' || event_type || ']' || char(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || char(10) FROM (SELECT * FROM Timeline WHERE session_id = (SELECT session_id FROM ActiveSession WHERE id=1) ORDER BY timestamp DESC LIMIT 10) ORDER BY timestamp ASC;")
+    # Fetch context using psql directly
+    CONTEXT=$(psql postgresql://nunix:nunix@localhost/ship_state -t -A -c "SELECT '[' || actor || ' - ' || event_type || ']' || chr(10) || CASE WHEN length(content) > 1000 THEN substr(content, 1, 1000) || '...[TRUNCATED]' ELSE content END || chr(10) FROM (SELECT * FROM Timeline ORDER BY timestamp DESC LIMIT 10) sub ORDER BY timestamp ASC;")
 
     SYS_PROMPT=$(cat ~/.sle-kit/prompts/matey-prompt.md)
     USER_PROMPT="$*"
     
     # Log the prompt
     CLEAN_PROMPT="${USER_PROMPT//\'/\'\'}"
-    sqlite3 ~/.sle-kit/memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
+    psql postgresql://nunix:nunix@localhost/ship_state -c "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'User', 'AI_Prompt', '$CLEAN_PROMPT');"
 
     INJECTED_PROMPT="$SYS_PROMPT
 
@@ -37,7 +37,7 @@ Based on the timeline context above, please respond to the following prompt. Do 
 $USER_PROMPT"
 
     # Run and capture output as JSON, then extract the response
-    RAW_OUTPUT=$(OPENAI_API_KEY="EMPTY" kit --config ~/.sle-kit/configs/matey.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt ~/.sle-kit/prompts/matey-prompt.md --no-session --quiet --json "$INJECTED_PROMPT")
+    RAW_OUTPUT=$(OPENAI_API_KEY="EMPTY" kit --config ~/.sle-kit/configs/matey.yml --provider-url "http://127.0.0.1:8000/v1" --system-prompt "$(cat ~/.sle-kit/prompts/matey-prompt.md)" --no-session --quiet --json "$INJECTED_PROMPT")
     OUTPUT=$(echo "$RAW_OUTPUT" | jq -r .response)
     
     # Strip ANSI codes just in case
@@ -45,7 +45,7 @@ $USER_PROMPT"
     CLEAN_OUTPUT_SQL="${CLEAN_OUTPUT//\'/\'\'}"
     
     # Log the response
-    sqlite3 ~/.sle-kit/memory/timeline.db "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Matey', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
+    psql postgresql://nunix:nunix@localhost/ship_state -c "INSERT INTO Timeline (session_id, actor, event_type, content) VALUES ((SELECT session_id FROM ActiveSession WHERE id=1), 'Matey', 'AI_Response', '$CLEAN_OUTPUT_SQL');"
     
     echo "$OUTPUT"
 fi

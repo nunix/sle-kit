@@ -8,26 +8,23 @@ temperature: 0.2
 maxTokens: 8192
 
 mcpServers:
-  blackboard:
+  postgres:
     type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/ship_state.db"]
+    command: ["/usr/bin/mcp-server-postgresql", "postgresql://nunix:nunix@localhost/ship_state"]
+  filesystem:
+    type: local
+    command: ["/usr/bin/mcp-server-filesystem", "/home/nunix", "/etc", "/var/log"]
   systemd:
     type: local
-    command: ["mcp-server-systemd"]
-  prompt:
-    type: local
-    command: ["mcp-server-user-prompt"]
-  sqlite:
-    type: local
-    command: ["mcp-server-sqlite-npx", "/home/nunix/.sle-kit/memory/timeline.db"]
-
-subagent:
-  model: "custom/matey"
+    command: ["/usr/bin/mcp-server-systemd"]
 
 customModels:
-  matey:
-    name: "Gemma 4 Local"
-    baseUrl: "http://127.0.0.1:8000/v1"
+  qwen3.6:
+    name: "Qwen 3.6"
+    baseUrl: "http://127.0.0.1:11434/v1"
     family: "llama"
-    contextLimit: 16384
-    outputLimit: 8192
+    limit:
+      context: 32768
+      output: 8192
+    params:
+      model: "qwen3.6:latest"
